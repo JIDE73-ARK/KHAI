@@ -1,40 +1,83 @@
-"use client"
+"use client";
 
-import type React from "react"
+import type React from "react";
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Card, CardContent } from "@/components/ui/card"
+import { useCallback, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent } from "@/components/ui/card";
+import { client } from "@/app/supabase-auth/supabase";
 
 interface LoginFormProps {
-  onError: (error: string | null) => void
+  onError: (error: string | null) => void;
 }
 
 export function LoginForm({ onError }: LoginFormProps) {
-  const router = useRouter()
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
-  const [isLoading, setIsLoading] = useState(false)
+  const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [resetMessage, setResetMessage] = useState<string | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsLoading(true)
-    onError(null)
+  const trimmedEmail = useMemo(() => email.trim(), [email]);
 
-    // Simulate login with possible failure
-    await new Promise((resolve) => setTimeout(resolve, 1000))
+  const handleSubmit = useCallback(
+    async (event: React.FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      setIsLoading(true);
+      setResetMessage(null);
+      onError(null);
 
-    if (password != "123456") {
-      onError("Invalid email or password. Please try again.")
-      setIsLoading(false)
-      return
+      try {
+        const { error } = await client.auth.signInWithPassword({
+          email: trimmedEmail,
+          password,
+        });
+
+        if (error) {
+          throw error;
+        }
+
+        router.push("/dashboard");
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "No fue posible iniciar sesión.";
+        onError(message);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [onError, password, router, trimmedEmail]
+  );
+
+  const handleForgot = useCallback(async () => {
+    if (!trimmedEmail) {
+      setResetMessage("Ingresa tu correo para recibir el enlace.");
+      return;
     }
 
-    router.push("/dashboard")
-  }
+    setResetMessage("Enviando enlace...");
+
+    const redirectTo =
+      typeof window !== "undefined"
+        ? `${window.location.origin}/dashboard`
+        : undefined;
+
+    const { error } = await client.auth.resetPasswordForEmail(trimmedEmail, {
+      redirectTo,
+    });
+
+    if (error) {
+      setResetMessage("No fue posible generar el enlace. Intenta nuevamente.");
+      return;
+    }
+
+    setResetMessage("Revisa tu bandeja para restablecer la contraseña.");
+  }, [trimmedEmail]);
 
   return (
     <Card className="border-border">
@@ -47,7 +90,7 @@ export function LoginForm({ onError }: LoginFormProps) {
               type="email"
               placeholder="you@company.com"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(event) => setEmail(event.target.value)}
               required
               className="bg-background"
             />
@@ -56,20 +99,28 @@ export function LoginForm({ onError }: LoginFormProps) {
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label htmlFor="password">Password</Label>
-              <a href="#" className="text-sm text-muted-foreground hover:text-foreground">
+              <button
+                type="button"
+                className="text-sm text-muted-foreground hover:text-foreground"
+                onClick={handleForgot}
+              >
                 Forgot password?
-              </a>
+              </button>
             </div>
             <Input
               id="password"
               type="password"
               placeholder="••••••••"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(event) => setPassword(event.target.value)}
               required
               className="bg-background"
             />
           </div>
+
+          {resetMessage && (
+            <p className="text-sm text-muted-foreground">{resetMessage}</p>
+          )}
 
           <Button type="submit" className="w-full" disabled={isLoading}>
             {isLoading ? "Signing in..." : "Sign in"}
@@ -77,5 +128,5 @@ export function LoginForm({ onError }: LoginFormProps) {
         </form>
       </CardContent>
     </Card>
-  )
+  );
 }

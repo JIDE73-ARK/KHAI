@@ -1,80 +1,102 @@
-"use client"
+"use client";
 
-import type React from "react"
+import type React from "react";
+import { client } from "@/app/supabase-auth/supabase";
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Card, CardContent } from "@/components/ui/card"
+import { useCallback, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent } from "@/components/ui/card";
 
-interface RegisterFormProps {
-  onError: (error: string | null) => void
-}
+type SubmissionStatus = "success" | "error";
 
-export function RegisterForm({ onError }: RegisterFormProps) {
-  const router = useRouter()
-  const [name, setName] = useState("")
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
-  const [confirmPassword, setConfirmPassword] = useState("")
-  const [isLoading, setIsLoading] = useState(false)
+export function RegisterForm() {
+  const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [status, setStatus] = useState<SubmissionStatus | null>(null);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    onError(null)
+  const trimmedEmail = useMemo(() => email.trim(), [email]);
 
-    if (password !== confirmPassword) {
-      onError("Passwords do not match. Please try again.")
-      return
-    }
+  const handleSubmit = useCallback(
+    async (event: React.FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
 
-    if (password.length < 8) {
-      onError("Password must be at least 8 characters long.")
-      return
-    }
+      if (password !== confirmPassword) {
+        setStatus("error");
+        setStatusMessage("Las contraseñas no coinciden.");
+        return;
+      }
 
-    setIsLoading(true)
+      if (password.length < 8) {
+        setStatus("error");
+        setStatusMessage("La contraseña debe tener al menos 8 caracteres.");
+        return;
+      }
 
-    await new Promise((resolve) => setTimeout(resolve, 1000))
+      if (!trimmedEmail) {
+        setStatus("error");
+        setStatusMessage("Agrega un correo válido.");
+        return;
+      }
 
-    const registrationSuccess = Math.random() > 0.3
+      setIsSubmitting(true);
+      setStatus(null);
+      setStatusMessage(null);
 
-    if (!registrationSuccess) {
-      onError("Email already exists or registration failed. Please try again.")
-      setIsLoading(false)
-      return
-    }
+      try {
+        const { error } = await client.auth.signUp({
+          email: trimmedEmail,
+          password,
+          options: {
+            emailRedirectTo: "http://localhost:3000/confirm",
+          },
+        });
 
-    router.push("/dashboard")
-  }
+        if (error) {
+          throw error;
+        }
+
+        setStatus("success");
+        setStatusMessage("Cuenta creada. Completa tu perfil.");
+        router.push(
+          `/create-profile?email=${encodeURIComponent(trimmedEmail)}`
+        );
+      } catch (error) {
+        console.error(error);
+        const message =
+          error instanceof Error
+            ? error.message
+            : "No fue posible crear la cuenta.";
+        setStatus("error");
+        setStatusMessage(message);
+      } finally {
+        setIsSubmitting(false);
+      }
+    },
+    [confirmPassword, password, router, trimmedEmail]
+  );
+
+  const statusClass =
+    status === "success" ? "text-emerald-500" : "text-destructive";
 
   return (
     <Card className="border-border">
       <CardContent className="pt-6">
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="name">Full Name</Label>
-            <Input
-              id="name"
-              type="text"
-              placeholder="John Doe"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-              className="bg-background"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="register-email">Email</Label>
+            <Label htmlFor="register-email">Correo electrónico</Label>
             <Input
               id="register-email"
               type="email"
-              placeholder="you@company.com"
+              placeholder="my-email@domain.com"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(event) => setEmail(event.target.value)}
               required
               className="bg-background"
             />
@@ -87,7 +109,7 @@ export function RegisterForm({ onError }: RegisterFormProps) {
               type="password"
               placeholder="••••••••"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(event) => setPassword(event.target.value)}
               required
               className="bg-background"
             />
@@ -100,17 +122,21 @@ export function RegisterForm({ onError }: RegisterFormProps) {
               type="password"
               placeholder="••••••••"
               value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
+              onChange={(event) => setConfirmPassword(event.target.value)}
               required
               className="bg-background"
             />
           </div>
 
-          <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading ? "Creating account..." : "Create account"}
+          {statusMessage && (
+            <p className={`text-sm ${statusClass}`}>{statusMessage}</p>
+          )}
+
+          <Button type="submit" className="w-full" disabled={isSubmitting}>
+            {isSubmitting ? "Enviando..." : "Create account"}
           </Button>
         </form>
       </CardContent>
     </Card>
-  )
+  );
 }

@@ -1,12 +1,24 @@
-"use client"
+"use client";
 
-import type React from "react"
-import { useState, useEffect } from "react"
-import { Button } from "@/components/ui/button"
-import { Home, Search, Library, Settings, Users, ChevronLeft, Moon, Sun, Upload, Palette } from "lucide-react"
-import Link from "next/link"
-import { usePathname, useRouter } from "next/navigation"
-import { cn } from "@/lib/utils"
+import type React from "react";
+import { useState, useEffect, useCallback } from "react";
+import { Button } from "@/components/ui/button";
+import {
+  Home,
+  Search,
+  Library,
+  Settings,
+  Users,
+  ChevronLeft,
+  Moon,
+  Sun,
+  Upload,
+  Palette,
+} from "lucide-react";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { cn } from "@/lib/utils";
+import { useRequireSession } from "@/lib/auth";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,9 +26,10 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { UploadModal } from "@/components/upload-modal"
+} from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { UploadModal } from "@/components/upload-modal";
+import { client } from "@/app/supabase-auth/supabase";
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: Home },
@@ -24,7 +37,7 @@ const navigation = [
   { name: "Library", href: "/library", icon: Library },
   { name: "Users", href: "/users", icon: Users },
   { name: "Settings", href: "/settings", icon: Settings },
-]
+];
 
 const accentColors = [
   { name: "Blue", value: "hsl(221, 83%, 53%)", class: "bg-blue-600" },
@@ -33,45 +46,65 @@ const accentColors = [
   { name: "Purple", value: "hsl(262, 83%, 58%)", class: "bg-purple-600" },
   { name: "Pink", value: "hsl(326, 78%, 56%)", class: "bg-pink-600" },
   { name: "Red", value: "hsl(0, 84%, 60%)", class: "bg-red-600" },
-]
+];
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname()
-  const router = useRouter()
-  const [sidebarOpen, setSidebarOpen] = useState(true)
-  const [uploadModalOpen, setUploadModalOpen] = useState(false)
-  const [theme, setTheme] = useState<"light" | "dark">("dark")
-  const [accentColor, setAccentColor] = useState(accentColors[0].value)
-  const [isInitialized, setIsInitialized] = useState(false)
+  const pathname = usePathname();
+  const router = useRouter();
+  const checkingSession = useRequireSession();
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [uploadModalOpen, setUploadModalOpen] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
+  const [theme, setTheme] = useState<"light" | "dark">("dark");
+  const [accentColor, setAccentColor] = useState(accentColors[0].value);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   useEffect(() => {
-    const savedTheme = localStorage.getItem("theme") as "light" | "dark" | null
-    const savedAccentColor = localStorage.getItem("accentColor")
+    const savedTheme = localStorage.getItem("theme") as "light" | "dark" | null;
+    const savedAccentColor = localStorage.getItem("accentColor");
 
     if (savedTheme) {
-      setTheme(savedTheme)
+      setTheme(savedTheme);
     }
     if (savedAccentColor) {
-      setAccentColor(savedAccentColor)
+      setAccentColor(savedAccentColor);
     }
-    setIsInitialized(true)
-  }, [])
+    setIsInitialized(true);
+  }, []);
 
   useEffect(() => {
-    if (!isInitialized) return
-    localStorage.setItem("theme", theme)
-    document.documentElement.classList.toggle("dark", theme === "dark")
-    document.documentElement.classList.toggle("light", theme === "light")
-  }, [theme, isInitialized])
+    if (!isInitialized) return;
+    localStorage.setItem("theme", theme);
+    document.documentElement.classList.toggle("dark", theme === "dark");
+    document.documentElement.classList.toggle("light", theme === "light");
+  }, [theme, isInitialized]);
 
   useEffect(() => {
-    if (!isInitialized) return
-    localStorage.setItem("accentColor", accentColor)
-    document.documentElement.style.setProperty("--primary", accentColor)
-  }, [accentColor, isInitialized])
+    if (!isInitialized) return;
+    localStorage.setItem("accentColor", accentColor);
+    document.documentElement.style.setProperty("--primary", accentColor);
+  }, [accentColor, isInitialized]);
 
   const toggleTheme = () => {
-    setTheme((prev) => (prev === "dark" ? "light" : "dark"))
+    setTheme((prev) => (prev === "dark" ? "light" : "dark"));
+  };
+
+  const handleLogout = useCallback(async () => {
+    if (isSigningOut) return;
+    setIsSigningOut(true);
+
+    await client.auth.signOut();
+    router.push("/");
+
+    setIsSigningOut(false);
+  }, [isSigningOut, router]);
+
+  if (checkingSession) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <p className="text-sm text-muted-foreground">Verificando sesión…</p>
+      </div>
+    );
   }
 
   return (
@@ -80,7 +113,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
       <aside
         className={cn(
           "fixed left-0 top-0 z-40 h-screen bg-sidebar border-r border-sidebar-border transition-all duration-300",
-          sidebarOpen ? "w-64" : "w-16",
+          sidebarOpen ? "w-64" : "w-16"
         )}
       >
         <div className="flex flex-col h-full">
@@ -89,30 +122,44 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
             {sidebarOpen ? (
               <div className="flex items-center gap-2">
                 <div className="size-8 bg-sidebar-primary rounded-lg flex items-center justify-center p-4">
-                  <span className="text-sidebar-primary-foreground font-bold text-lg">K</span>
+                  <span className="text-sidebar-primary-foreground font-bold text-lg">
+                    K
+                  </span>
                 </div>
-                <span className="text-base font-semibold text-sidebar-foreground">KnowledgeHub AI</span>
+                <span className="text-base font-semibold text-sidebar-foreground">
+                  KnowledgeHub AI
+                </span>
               </div>
             ) : (
               <div className="size-8 bg-sidebar-primary rounded-lg flex items-center justify-center mx-auto">
-                <span className="text-sidebar-primary-foreground font-bold text-lg">K</span>
+                <span className="text-sidebar-primary-foreground font-bold text-lg">
+                  K
+                </span>
               </div>
             )}
             <Button
               variant="ghost"
               size="icon"
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className={cn("text-sidebar-foreground", !sidebarOpen && "mx-auto mt-2")}
+              className={cn(
+                "text-sidebar-foreground",
+                !sidebarOpen && "mx-auto mt-2"
+              )}
             >
-              <ChevronLeft className={cn("size-4 transition-transform", !sidebarOpen && "rotate-180")} />
+              <ChevronLeft
+                className={cn(
+                  "size-4 transition-transform",
+                  !sidebarOpen && "rotate-180"
+                )}
+              />
             </Button>
           </div>
 
           {/* Navigation */}
           <nav className="flex-1 p-2 space-y-1">
             {navigation.map((item) => {
-              const Icon = item.icon
-              const isActive = pathname === item.href
+              const Icon = item.icon;
+              const isActive = pathname === item.href;
               return (
                 <Link key={item.name} href={item.href}>
                   <div
@@ -120,14 +167,16 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                       "flex items-center gap-3 px-3 py-2 rounded-lg transition-colors",
                       isActive
                         ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                        : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                        : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                     )}
                   >
-                    <Icon className="size-5 flex-shrink-0" />
-                    {sidebarOpen && <span className="text-sm font-medium">{item.name}</span>}
+                    <Icon className="size-5 shrink-0" />
+                    {sidebarOpen && (
+                      <span className="text-sm font-medium">{item.name}</span>
+                    )}
                   </div>
                 </Link>
-              )
+              );
             })}
           </nav>
 
@@ -143,8 +192,12 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex-1 text-left">
-                      <p className="text-sm font-medium text-sidebar-foreground">John Doe</p>
-                      <p className="text-xs text-muted-foreground">john@acme.com</p>
+                      <p className="text-sm font-medium text-sidebar-foreground">
+                        John Doe
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        john@acme.com
+                      </p>
                     </div>
                   </button>
                 </DropdownMenuTrigger>
@@ -155,7 +208,9 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                   <DropdownMenuItem>Preferences</DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem>
-                    <Link href="/">Log out</Link>
+                    <button onClick={handleLogout} className="w-full text-left">
+                      {isSigningOut ? "Signing out..." : "Log out"}
+                    </button>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -165,13 +220,22 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* Main Content */}
-      <div className={cn("transition-all duration-300", sidebarOpen ? "ml-64" : "ml-16")}>
+      <div
+        className={cn(
+          "transition-all duration-300",
+          sidebarOpen ? "ml-64" : "ml-16"
+        )}
+      >
         {/* Header */}
-        <header className="sticky top-0 z-30 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <header className="sticky top-0 z-30 border-b border-border bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60">
           <div className="flex items-center gap-4 px-6 py-4">
             {/* Global Search */}
             <div className="flex items-center gap-2 ml-auto">
-              <Button variant="ghost" size="icon" onClick={() => setUploadModalOpen(true)}>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setUploadModalOpen(true)}
+              >
                 <Upload className="size-5" />
               </Button>
               <DropdownMenu>
@@ -191,7 +255,8 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                         className={cn(
                           "size-10 rounded-md transition-all hover:scale-110",
                           color.class,
-                          accentColor === color.value && "ring-2 ring-offset-2 ring-offset-background ring-foreground",
+                          accentColor === color.value &&
+                            "ring-2 ring-offset-2 ring-offset-background ring-foreground"
                         )}
                         title={color.name}
                       />
@@ -200,7 +265,11 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                 </DropdownMenuContent>
               </DropdownMenu>
               <Button variant="ghost" size="icon" onClick={toggleTheme}>
-                {theme === "dark" ? <Sun className="size-5" /> : <Moon className="size-5" />}
+                {theme === "dark" ? (
+                  <Sun className="size-5" />
+                ) : (
+                  <Moon className="size-5" />
+                )}
               </Button>
             </div>
           </div>
@@ -213,5 +282,5 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
       {/* UploadModal Component */}
       <UploadModal open={uploadModalOpen} onOpenChange={setUploadModalOpen} />
     </div>
-  )
+  );
 }
