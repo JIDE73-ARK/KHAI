@@ -18,7 +18,6 @@ import {
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { useRequireSession } from "@/lib/auth";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,8 +28,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { UploadModal } from "@/components/upload-modal";
-import { client } from "@/app/supabase-auth/supabase";
-
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: Home },
   { name: "Search", href: "/search", icon: Search },
@@ -51,10 +48,8 @@ const accentColors = [
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const checkingSession = useRequireSession();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
-  const [isSigningOut, setIsSigningOut] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("dark");
   const [accentColor, setAccentColor] = useState(accentColors[0].value);
   const [isInitialized, setIsInitialized] = useState(false);
@@ -89,23 +84,9 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     setTheme((prev) => (prev === "dark" ? "light" : "dark"));
   };
 
-  const handleLogout = useCallback(async () => {
-    if (isSigningOut) return;
-    setIsSigningOut(true);
-
-    await client.auth.signOut();
+  const handleLogout = useCallback(() => {
     router.push("/");
-
-    setIsSigningOut(false);
-  }, [isSigningOut, router]);
-
-  if (checkingSession) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <p className="text-sm text-muted-foreground">Verificando sesión…</p>
-      </div>
-    );
-  }
+  }, [router]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -209,7 +190,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                   <DropdownMenuSeparator />
                   <DropdownMenuItem>
                     <button onClick={handleLogout} className="w-full text-left">
-                      {isSigningOut ? "Signing out..." : "Log out"}
+                      Log out
                     </button>
                   </DropdownMenuItem>
                 </DropdownMenuContent>

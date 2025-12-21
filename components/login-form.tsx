@@ -3,23 +3,25 @@
 import type React from "react";
 
 import { useCallback, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
-import { client } from "@/app/supabase-auth/supabase";
 
 interface LoginFormProps {
-  onError: (error: string | null) => void;
+  onSubmit?: (credentials: {
+    email: string;
+    password: string;
+  }) => Promise<void> | void;
+  onForgotPassword?: (email: string) => Promise<void> | void;
 }
 
-export function LoginForm({ onError }: LoginFormProps) {
-  const router = useRouter();
+export function LoginForm({ onSubmit, onForgotPassword }: LoginFormProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [resetMessage, setResetMessage] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   const trimmedEmail = useMemo(() => email.trim(), [email]);
 
@@ -28,30 +30,28 @@ export function LoginForm({ onError }: LoginFormProps) {
       event.preventDefault();
       setIsLoading(true);
       setResetMessage(null);
-      onError(null);
+      setStatusMessage(null);
+
+      if (!trimmedEmail || !password) {
+        setStatusMessage("Agrega tus credenciales para continuar.");
+        setIsLoading(false);
+        return;
+      }
 
       try {
-        const { error } = await client.auth.signInWithPassword({
-          email: trimmedEmail,
-          password,
-        });
-
-        if (error) {
-          throw error;
-        }
-
-        router.push("/dashboard");
+        await Promise.resolve(onSubmit?.({ email: trimmedEmail, password }));
+        setStatusMessage("Listo para enviar las credenciales a tu backend.");
       } catch (error) {
         const message =
           error instanceof Error
             ? error.message
             : "No fue posible iniciar sesión.";
-        onError(message);
+        setStatusMessage(message);
       } finally {
         setIsLoading(false);
       }
     },
-    [onError, password, router, trimmedEmail]
+    [onSubmit, password, trimmedEmail]
   );
 
   const handleForgot = useCallback(async () => {
@@ -60,24 +60,15 @@ export function LoginForm({ onError }: LoginFormProps) {
       return;
     }
 
-    setResetMessage("Enviando enlace...");
-
-    const redirectTo =
-      typeof window !== "undefined"
-        ? `${window.location.origin}/dashboard`
-        : undefined;
-
-    const { error } = await client.auth.resetPasswordForEmail(trimmedEmail, {
-      redirectTo,
-    });
-
-    if (error) {
+    try {
+      await Promise.resolve(onForgotPassword?.(trimmedEmail));
+      setResetMessage(
+        "Revisa tu bandeja para restablecer la contraseña o contacta al equipo de soporte."
+      );
+    } catch (error) {
       setResetMessage("No fue posible generar el enlace. Intenta nuevamente.");
-      return;
     }
-
-    setResetMessage("Revisa tu bandeja para restablecer la contraseña.");
-  }, [trimmedEmail]);
+  }, [trimmedEmail, onForgotPassword]);
 
   return (
     <Card className="border-border">
@@ -118,6 +109,9 @@ export function LoginForm({ onError }: LoginFormProps) {
             />
           </div>
 
+          {statusMessage && (
+            <p className="text-sm text-destructive">{statusMessage}</p>
+          )}
           {resetMessage && (
             <p className="text-sm text-muted-foreground">{resetMessage}</p>
           )}

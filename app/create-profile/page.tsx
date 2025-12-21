@@ -13,7 +13,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useRequireSession } from "@/lib/auth";
 
 const ROLE_TYPES = [
   { value: "owner", label: "Owner" },
@@ -25,7 +24,6 @@ type RoleType = (typeof ROLE_TYPES)[number]["value"];
 export default function CreateProfilePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const isCheckingSession = useRequireSession();
   const presetEmail = useMemo(
     () => searchParams.get("email") ?? "",
     [searchParams]
@@ -79,14 +77,6 @@ export default function CreateProfilePage() {
     },
     [isOwner, name, presetEmail, role, teamCode, teamName, router]
   );
-
-  if (isCheckingSession) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <p className="text-sm text-muted-foreground">Verificando sesión…</p>
-      </div>
-    );
-  }
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-background px-4 py-10">

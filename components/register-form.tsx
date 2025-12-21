@@ -1,19 +1,26 @@
 "use client";
 
 import type React from "react";
-import { client } from "@/app/supabase-auth/supabase";
 
 import { useCallback, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent } from "@/components/ui/card";
+
+interface RegisterFormValues {
+  email: string;
+  password: string;
+  confirmPassword: string;
+}
+
+interface RegisterFormProps {
+  onSubmit?: (values: RegisterFormValues) => Promise<void> | void;
+}
 
 type SubmissionStatus = "success" | "error";
 
-export function RegisterForm() {
-  const router = useRouter();
+export function RegisterForm({ onSubmit }: RegisterFormProps = {}) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -50,36 +57,30 @@ export function RegisterForm() {
       setStatusMessage(null);
 
       try {
-        const { error } = await client.auth.signUp({
-          email: trimmedEmail,
-          password,
-          options: {
-            emailRedirectTo: "http://localhost:3000/confirm",
-          },
-        });
-
-        if (error) {
-          throw error;
-        }
+        await Promise.resolve(
+          onSubmit?.({
+            email: trimmedEmail,
+            password,
+            confirmPassword,
+          })
+        );
 
         setStatus("success");
-        setStatusMessage("Cuenta creada. Completa tu perfil.");
-        router.push(
-          `/create-profile?email=${encodeURIComponent(trimmedEmail)}`
+        setStatusMessage(
+          "Formulario listo. Envía estos datos a tu backend para crear la cuenta."
         );
       } catch (error) {
-        console.error(error);
         const message =
           error instanceof Error
             ? error.message
-            : "No fue posible crear la cuenta.";
+            : "No fue posible procesar el formulario.";
         setStatus("error");
         setStatusMessage(message);
       } finally {
         setIsSubmitting(false);
       }
     },
-    [confirmPassword, password, router, trimmedEmail]
+    [confirmPassword, onSubmit, password, trimmedEmail]
   );
 
   const statusClass =
