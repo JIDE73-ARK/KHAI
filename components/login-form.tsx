@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
+import { request } from "@/lib/req";
 
 interface LoginFormProps {
   onSubmit?: (credentials: {
@@ -39,14 +40,12 @@ export function LoginForm({ onSubmit, onForgotPassword }: LoginFormProps) {
       }
 
       try {
-        await Promise.resolve(onSubmit?.({ email: trimmedEmail, password }));
-        setStatusMessage("Listo para enviar las credenciales a tu backend.");
+        const response = await request("/auth/login", "POST", {
+          email: trimmedEmail,
+          password,
+        });
       } catch (error) {
-        const message =
-          error instanceof Error
-            ? error.message
-            : "No fue posible iniciar sesión.";
-        setStatusMessage(message);
+        setStatusMessage("No fue posible iniciar sesión.");
       } finally {
         setIsLoading(false);
       }

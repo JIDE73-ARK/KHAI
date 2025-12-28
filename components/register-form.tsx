@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { request } from "@/lib/req";
 
 interface RegisterFormValues {
   email: string;
@@ -57,25 +58,14 @@ export function RegisterForm({ onSubmit }: RegisterFormProps = {}) {
       setStatusMessage(null);
 
       try {
-        await Promise.resolve(
-          onSubmit?.({
-            email: trimmedEmail,
-            password,
-            confirmPassword,
-          })
-        );
-
+        const response = await request("/auth/register", "POST", {
+          email: trimmedEmail,
+          password,
+        });
         setStatus("success");
-        setStatusMessage(
-          "Formulario listo. Envía estos datos a tu backend para crear la cuenta."
-        );
       } catch (error) {
-        const message =
-          error instanceof Error
-            ? error.message
-            : "No fue posible procesar el formulario.";
         setStatus("error");
-        setStatusMessage(message);
+        setStatusMessage("No fue posible crear la cuenta.");
       } finally {
         setIsSubmitting(false);
       }
