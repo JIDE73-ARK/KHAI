@@ -13,10 +13,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { request } from "@/lib/req";
 
 const ROLE_TYPES = [
-  { value: "owner", label: "Owner" },
-  { value: "member", label: "Member" },
+  { value: "Owner", label: "Owner" },
+  { value: "Member", label: "Member" },
 ] as const;
 
 type RoleType = (typeof ROLE_TYPES)[number]["value"];
@@ -30,13 +31,13 @@ export default function CreateProfilePage() {
   );
 
   const [name, setName] = useState("");
-  const [role, setRole] = useState<RoleType>("owner");
+  const [role, setRole] = useState<RoleType>("Owner");
   const [teamName, setTeamName] = useState("");
   const [teamCode, setTeamCode] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
-  const isOwner = role === "owner";
+  const isOwner = role === "Owner";
 
   const handleSubmit = useCallback(
     async (event: React.FormEvent<HTMLFormElement>) => {
@@ -62,18 +63,43 @@ export default function CreateProfilePage() {
         return;
       }
 
-      await new Promise((resolve) => setTimeout(resolve, 600));
+      const userId = localStorage.getItem("user_id");
+      if (!userId) {
+        setStatusMessage("Tu sesión expiró. Inicia sesión nuevamente.");
+        setIsSubmitting(false);
+        return;
+      }
 
-      // Placeholder para futura integración con backend.
-      console.info("Perfil creado", {
-        email: presetEmail,
-        name,
-        role,
-        teamName,
-        teamCode,
-      });
+      try {
+        console.log(
+          "etos son los datos que se envian: ",
+          userId,
+          name,
+          role,
+          teamName,
+          teamCode
+        );
+        const response = await request("/profile/createProfile", "POST", {
+          userId,
+          username: name,
+          teamrole: role,
+          teamname: teamName,
+          teamid: teamCode,
+        });
 
-      router.push("/dashboard");
+        if (response.status == 201) {
+          router.push("/dashboard");
+        } else {
+          setStatusMessage(
+            "No fue posible crear el perfil. Intenta nuevamente."
+          );
+        }
+      } catch (error) {
+        console.error(error);
+        setStatusMessage("No fue posible crear el perfil. Intenta nuevamente.");
+      } finally {
+        setIsSubmitting(false);
+      }
     },
     [isOwner, name, presetEmail, role, teamCode, teamName, router]
   );

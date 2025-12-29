@@ -3,6 +3,7 @@
 import type React from "react";
 
 import { useCallback, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,6 +19,7 @@ interface LoginFormProps {
 }
 
 export function LoginForm({ onSubmit, onForgotPassword }: LoginFormProps) {
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -44,13 +46,17 @@ export function LoginForm({ onSubmit, onForgotPassword }: LoginFormProps) {
           email: trimmedEmail,
           password,
         });
+
+        localStorage.setItem("user_id", response.user.id);
+
+        router.push(`/create-profile`);
       } catch (error) {
         setStatusMessage("No fue posible iniciar sesión.");
       } finally {
         setIsLoading(false);
       }
     },
-    [onSubmit, password, trimmedEmail]
+    [onSubmit, password, router, trimmedEmail]
   );
 
   const handleForgot = useCallback(async () => {
