@@ -9,7 +9,9 @@ const request = async (url: string, method: string, body: any) => {
     },
     credentials: "include",
   });
-  return response.json();
+
+  const data = await response.json();
+  return { status: response.status, ...data };
 };
 
 export { request };
