@@ -14,4 +14,15 @@ const request = async (url: string, method: string, body: any) => {
   return { status: response.status, ...data };
 };
 
-export { request };
+const uploadRequest = async (url: string, formData: FormData) => {
+  const response = await fetch(`${baseUrl}${url}`, {
+    method: "POST",
+    body: formData,
+    credentials: "include",
+  });
+
+  const data = await response.json();
+  return { status: response.status, ...data };
+};
+
+export { request, uploadRequest };
