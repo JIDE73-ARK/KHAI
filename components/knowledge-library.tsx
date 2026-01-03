@@ -1,92 +1,144 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { Card, CardContent } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { FileText, LinkIcon, Search, Grid3x3, List, Upload, FolderOpen } from "lucide-react"
-import Link from "next/link"
-import { Badge } from "@/components/ui/badge"
-import { UploadModal } from "@/components/upload-modal"
+import { useEffect, useState } from "react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  FileText,
+  Search,
+  Grid3x3,
+  List,
+  Upload,
+  FolderOpen,
+} from "lucide-react";
+import Link from "next/link";
+import { Badge } from "@/components/ui/badge";
+import { UploadModal } from "@/components/upload-modal";
+import { request } from "@/lib/req";
 
-const documents = [
-  {
-    id: "1",
-    title: "Q4 Product Roadmap 2024",
-    type: "document",
-    fileType: "PDF",
-    size: "2.4 MB",
-    owner: "Sarah Chen",
-    lastModified: "2 days ago",
-    tags: ["product", "roadmap", "planning"],
-  },
-  {
-    id: "2",
-    title: "Engineering Best Practices",
-    type: "document",
-    fileType: "DOCX",
-    size: "1.8 MB",
-    owner: "Mike Johnson",
-    lastModified: "5 days ago",
-    tags: ["engineering", "documentation"],
-  },
-  {
-    id: "3",
-    title: "Customer Success Playbook",
-    type: "link",
-    fileType: "URL",
-    size: "-",
-    owner: "Emily Davis",
-    lastModified: "1 week ago",
-    tags: ["customer-success", "playbook"],
-  },
-  {
-    id: "4",
-    title: "API Documentation v2.3",
-    type: "document",
-    fileType: "PDF",
-    size: "3.2 MB",
-    owner: "Alex Kim",
-    lastModified: "2 weeks ago",
-    tags: ["api", "documentation", "technical"],
-  },
-  {
-    id: "5",
-    title: "Marketing Campaign Q1 2025",
-    type: "document",
-    fileType: "PPTX",
-    size: "5.1 MB",
-    owner: "Lisa Park",
-    lastModified: "3 days ago",
-    tags: ["marketing", "campaign"],
-  },
-  {
-    id: "6",
-    title: "Security Policies & Compliance",
-    type: "document",
-    fileType: "PDF",
-    size: "1.5 MB",
-    owner: "David Lee",
-    lastModified: "1 month ago",
-    tags: ["security", "compliance", "policies"],
-  },
-]
+type ApiDocument = {
+  id: string;
+  title: string;
+  source: string;
+  content: string;
+  content_sha: string;
+  profile_id: string;
+  file_size: number;
+  created_at: string;
+  profile?: {
+    id: string;
+    name?: string;
+    created_at?: string;
+    permissions?: string;
+  };
+};
+
+type LibraryDocument = {
+  id: string;
+  title: string;
+  fileType: string;
+  size: string;
+  owner: string;
+  lastModified: string;
+};
+
+const formatFileSize = (bytes?: number) => {
+  if (!bytes || Number.isNaN(bytes)) return "-";
+  const sizes = ["B", "KB", "MB", "GB"];
+  let i = 0;
+  let value = bytes;
+  while (value >= 1024 && i < sizes.length - 1) {
+    value /= 1024;
+    i++;
+  }
+  return `${value.toFixed(1)} ${sizes[i]}`;
+};
+
+const formatMimeType = (mime?: string) => {
+  if (!mime) return "-";
+  const [, subtype] = mime.split("/");
+  return (subtype ?? mime).toUpperCase();
+};
+
+const formatDate = (date?: string) => {
+  if (!date) return "-";
+  const parsed = new Date(date);
+  return Number.isNaN(parsed.getTime()) ? "-" : parsed.toLocaleDateString();
+};
+
+const normalizeDocuments = (docs: ApiDocument[]): LibraryDocument[] =>
+  docs.map((doc) => ({
+    id: doc.id,
+    title: doc.title || "Documento sin título",
+    fileType: formatMimeType(doc.source),
+    size: formatFileSize(doc.file_size),
+    owner: doc.profile?.name ?? doc.profile_id ?? "N/A",
+    lastModified: formatDate(doc.created_at),
+  }));
 
 export function KnowledgeLibrary() {
-  const [view, setView] = useState<"grid" | "list">("grid")
-  const [searchQuery, setSearchQuery] = useState("")
-  const [sortBy, setSortBy] = useState("recent")
-  const [uploadModalOpen, setUploadModalOpen] = useState(false)
+  const [documents, setDocuments] = useState<LibraryDocument[]>([]);
+  const [view, setView] = useState<"grid" | "list">("grid");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortBy, setSortBy] = useState("recent");
+  const [uploadModalOpen, setUploadModalOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const fetchDocuments = async () => {
+      const userId = localStorage.getItem("user_id");
+
+      setLoading(true);
+      try {
+        const response = await request(
+          `/docs/myDocuments/${userId}`,
+          "GET",
+          {}
+        );
+        console.log(response);
+        const docs = Array.isArray(response.document) ? response.document : [];
+        setDocuments(normalizeDocuments(docs));
+      } catch (error) {
+        console.error("Error loading documents", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDocuments();
+  }, []);
+
+  const filteredDocuments = documents
+    .filter((doc) =>
+      doc.title.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+    .sort((a, b) => {
+      if (sortBy === "title") return a.title.localeCompare(b.title);
+      if (sortBy === "owner") return a.owner.localeCompare(b.owner);
+      if (sortBy === "size") return a.size.localeCompare(b.size);
+      return 0;
+    });
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-semibold text-foreground mb-2">Knowledge Library</h1>
-          <p className="text-muted-foreground">Browse and manage your company documents and links</p>
+          <h1 className="text-3xl font-semibold text-foreground mb-2">
+            Knowledge Library
+          </h1>
+          <p className="text-muted-foreground">
+            Browse and manage your company documents and links
+          </p>
         </div>
         <Button className="gap-2" onClick={() => setUploadModalOpen(true)}>
           <Upload className="size-4" />
@@ -119,7 +171,11 @@ export function KnowledgeLibrary() {
           </SelectContent>
         </Select>
 
-        <Tabs value={view} onValueChange={(v) => setView(v as "grid" | "list")} className="w-auto">
+        <Tabs
+          value={view}
+          onValueChange={(v) => setView(v as "grid" | "list")}
+          className="w-auto"
+        >
           <TabsList>
             <TabsTrigger value="grid" className="gap-2">
               <Grid3x3 className="size-4" />
@@ -137,25 +193,27 @@ export function KnowledgeLibrary() {
       <div className="flex items-center gap-6 text-sm">
         <div className="flex items-center gap-2">
           <FolderOpen className="size-4 text-muted-foreground" />
-          <span className="text-foreground font-medium">{documents.length}</span>
+          <span className="text-foreground font-medium">
+            {documents.length}
+          </span>
           <span className="text-muted-foreground">documents</span>
         </div>
       </div>
 
+      {loading ? (
+        <p className="text-sm text-muted-foreground">Cargando documentos...</p>
+      ) : null}
+
       {/* Documents Grid */}
       {view === "grid" ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {documents.map((doc) => (
+          {filteredDocuments.map((doc) => (
             <Link key={doc.id} href={`/document/${doc.id}`}>
               <Card className="border-border hover:bg-accent/50 transition-colors h-full cursor-pointer">
                 <CardContent className="p-5 space-y-4">
                   <div className="flex items-start justify-between">
                     <div className="size-12 bg-muted rounded-lg flex items-center justify-center">
-                      {doc.type === "link" ? (
-                        <LinkIcon className="size-6 text-muted-foreground" />
-                      ) : (
-                        <FileText className="size-6 text-muted-foreground" />
-                      )}
+                      <FileText className="size-6 text-muted-foreground" />
                     </div>
                     <Badge variant="secondary" className="text-xs">
                       {doc.fileType}
@@ -163,19 +221,9 @@ export function KnowledgeLibrary() {
                   </div>
 
                   <div>
-                    <h3 className="font-semibold text-foreground mb-2 line-clamp-2">{doc.title}</h3>
-                    <div className="flex flex-wrap gap-1 mb-3">
-                      {doc.tags.slice(0, 2).map((tag) => (
-                        <Badge key={tag} variant="outline" className="text-xs">
-                          {tag}
-                        </Badge>
-                      ))}
-                      {doc.tags.length > 2 && (
-                        <Badge variant="outline" className="text-xs">
-                          +{doc.tags.length - 2}
-                        </Badge>
-                      )}
-                    </div>
+                    <h3 className="font-semibold text-foreground mb-2 line-clamp-2">
+                      {doc.title}
+                    </h3>
                     <div className="text-xs text-muted-foreground space-y-1">
                       <p>By {doc.owner}</p>
                       <p>
@@ -190,22 +238,20 @@ export function KnowledgeLibrary() {
         </div>
       ) : (
         <div className="space-y-2">
-          {documents.map((doc) => (
+          {filteredDocuments.map((doc) => (
             <Link key={doc.id} href={`/document/${doc.id}`}>
               <Card className="border-border hover:bg-accent/50 transition-colors cursor-pointer">
                 <CardContent className="p-4">
                   <div className="flex items-center gap-4">
-                    <div className="size-10 bg-muted rounded-lg flex items-center justify-center flex-shrink-0">
-                      {doc.type === "link" ? (
-                        <LinkIcon className="size-5 text-muted-foreground" />
-                      ) : (
-                        <FileText className="size-5 text-muted-foreground" />
-                      )}
+                    <div className="size-10 bg-muted rounded-lg flex items-center justify-center shrink-0">
+                      <FileText className="size-5 text-muted-foreground" />
                     </div>
 
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <h3 className="font-semibold text-foreground">{doc.title}</h3>
+                        <h3 className="font-semibold text-foreground">
+                          {doc.title}
+                        </h3>
                         <Badge variant="secondary" className="text-xs">
                           {doc.fileType}
                         </Badge>
@@ -218,14 +264,6 @@ export function KnowledgeLibrary() {
                         <span>{doc.lastModified}</span>
                       </div>
                     </div>
-
-                    <div className="flex flex-wrap gap-1">
-                      {doc.tags.slice(0, 3).map((tag) => (
-                        <Badge key={tag} variant="outline" className="text-xs">
-                          {tag}
-                        </Badge>
-                      ))}
-                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -237,5 +275,5 @@ export function KnowledgeLibrary() {
       {/* Upload Modal */}
       <UploadModal open={uploadModalOpen} onOpenChange={setUploadModalOpen} />
     </div>
-  )
+  );
 }
