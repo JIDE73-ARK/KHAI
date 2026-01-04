@@ -19,6 +19,7 @@ import {
   List,
   Upload,
   FolderOpen,
+  Link2,
 } from "lucide-react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
@@ -51,6 +52,29 @@ type LibraryDocument = {
   lastModified: string;
 };
 
+type ApiLink = {
+  id: string;
+  title: string;
+  url: string;
+  profile_id: string;
+  created_at: string;
+  profile?: {
+    id: string;
+    name?: string;
+    created_at?: string;
+    permissions?: string;
+  };
+};
+
+type LibraryLink = {
+  id: string;
+  title: string;
+  url: string;
+  host: string;
+  owner: string;
+  createdAt: string;
+};
+
 const formatFileSize = (bytes?: number) => {
   if (!bytes || Number.isNaN(bytes)) return "-";
   const sizes = ["B", "KB", "MB", "GB"];
@@ -69,6 +93,15 @@ const formatMimeType = (mime?: string) => {
   return (subtype ?? mime).toUpperCase();
 };
 
+const getHostname = (url?: string) => {
+  if (!url) return "-";
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch (err) {
+    return url;
+  }
+};
+
 const formatDate = (date?: string) => {
   if (!date) return "-";
   const parsed = new Date(date);
@@ -85,15 +118,30 @@ const normalizeDocuments = (docs: ApiDocument[]): LibraryDocument[] =>
     lastModified: formatDate(doc.created_at),
   }));
 
+const normalizeLinks = (items: ApiLink[]): LibraryLink[] =>
+  items.map((link) => ({
+    id: link.id,
+    title: link.title || link.url || "Enlace sin título",
+    url: link.url,
+    host: getHostname(link.url),
+    owner: link.profile?.name ?? link.profile_id ?? "N/A",
+    createdAt: formatDate(link.created_at),
+  }));
+
 export function KnowledgeLibrary() {
   const [documents, setDocuments] = useState<LibraryDocument[]>([]);
+  const [links, setLinks] = useState<LibraryLink[]>([]);
   const [view, setView] = useState<"grid" | "list">("grid");
+  const [contentTab, setContentTab] = useState<"documents" | "links">(
+    "documents"
+  );
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState("recent");
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    // Get documents from the API
     const fetchDocuments = async () => {
       const userId = localStorage.getItem("user_id");
 
@@ -104,7 +152,6 @@ export function KnowledgeLibrary() {
           "GET",
           {}
         );
-        console.log(response);
         const docs = Array.isArray(response.document) ? response.document : [];
         setDocuments(normalizeDocuments(docs));
       } catch (error) {
@@ -115,6 +162,24 @@ export function KnowledgeLibrary() {
     };
 
     fetchDocuments();
+
+    // Get links from the API
+    const fetchLinks = async () => {
+      const userId = localStorage.getItem("user_id");
+
+      setLoading(true);
+      try {
+        const response = await request(`/docs/myLinks/${userId}`, "GET", {});
+        const items = Array.isArray(response.links) ? response.links : [];
+        setLinks(normalizeLinks(items));
+      } catch (error) {
+        console.error("Error loading links", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchLinks();
   }, []);
 
   const filteredDocuments = documents
@@ -127,6 +192,33 @@ export function KnowledgeLibrary() {
       if (sortBy === "size") return a.size.localeCompare(b.size);
       return 0;
     });
+
+  const filteredLinks = links
+    .filter((link) =>
+      [link.title, link.host, link.owner].some((value) =>
+        value.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    )
+    .sort((a, b) => {
+      if (sortBy === "title") return a.title.localeCompare(b.title);
+      if (sortBy === "owner") return a.owner.localeCompare(b.owner);
+      // recent by created date is handled by default
+      return 0;
+    });
+
+  const sortOptions =
+    contentTab === "documents"
+      ? [
+          { value: "recent", label: "Recently modified" },
+          { value: "title", label: "Title A-Z" },
+          { value: "owner", label: "Owner" },
+          { value: "size", label: "File size" },
+        ]
+      : [
+          { value: "recent", label: "Recently added" },
+          { value: "title", label: "Title A-Z" },
+          { value: "owner", label: "Owner" },
+        ];
 
   return (
     <div className="space-y-6">
@@ -146,6 +238,18 @@ export function KnowledgeLibrary() {
         </Button>
       </div>
 
+      {/* Content type tabs */}
+      <Tabs
+        value={contentTab}
+        onValueChange={(val) => setContentTab(val as "documents" | "links")}
+        className="w-full"
+      >
+        <TabsList className="w-full sm:w-auto">
+          <TabsTrigger value="documents">Documentos</TabsTrigger>
+          <TabsTrigger value="links">Enlaces</TabsTrigger>
+        </TabsList>
+      </Tabs>
+
       {/* Search and Filters */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="flex-1 relative">
@@ -164,10 +268,11 @@ export function KnowledgeLibrary() {
             <SelectValue placeholder="Sort by" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="recent">Recently modified</SelectItem>
-            <SelectItem value="title">Title A-Z</SelectItem>
-            <SelectItem value="owner">Owner</SelectItem>
-            <SelectItem value="size">File size</SelectItem>
+            {sortOptions.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
 
@@ -198,76 +303,163 @@ export function KnowledgeLibrary() {
           </span>
           <span className="text-muted-foreground">documents</span>
         </div>
+        <div className="flex items-center gap-2">
+          <Link2 className="size-4 text-muted-foreground" />
+          <span className="text-foreground font-medium">{links.length}</span>
+          <span className="text-muted-foreground">links</span>
+        </div>
       </div>
 
       {loading ? (
         <p className="text-sm text-muted-foreground">Cargando documentos...</p>
       ) : null}
 
-      {/* Documents Grid */}
-      {view === "grid" ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredDocuments.map((doc) => (
-            <Link key={doc.id} href={`/document/${doc.id}`}>
-              <Card className="border-border hover:bg-accent/50 transition-colors h-full cursor-pointer">
-                <CardContent className="p-5 space-y-4">
-                  <div className="flex items-start justify-between">
-                    <div className="size-12 bg-muted rounded-lg flex items-center justify-center">
-                      <FileText className="size-6 text-muted-foreground" />
+      {/* Documents / Links content */}
+      {contentTab === "documents" ? (
+        view === "grid" ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredDocuments.map((doc) => (
+              <Link key={doc.id} href={`/document/${doc.id}`}>
+                <Card className="border-border hover:bg-accent/50 transition-colors h-full cursor-pointer">
+                  <CardContent className="p-5 space-y-4">
+                    <div className="flex items-start justify-between">
+                      <div className="size-12 bg-muted rounded-lg flex items-center justify-center">
+                        <FileText className="size-6 text-muted-foreground" />
+                      </div>
+                      <Badge variant="secondary" className="text-xs">
+                        {doc.fileType}
+                      </Badge>
                     </div>
-                    <Badge variant="secondary" className="text-xs">
-                      {doc.fileType}
-                    </Badge>
-                  </div>
 
-                  <div>
-                    <h3 className="font-semibold text-foreground mb-2 line-clamp-2">
-                      {doc.title}
-                    </h3>
-                    <div className="text-xs text-muted-foreground space-y-1">
-                      <p>By {doc.owner}</p>
-                      <p>
-                        {doc.size} • {doc.lastModified}
-                      </p>
+                    <div>
+                      <h3 className="font-semibold text-foreground mb-2 line-clamp-2">
+                        {doc.title}
+                      </h3>
+                      <div className="text-xs text-muted-foreground space-y-1">
+                        <p>By {doc.owner}</p>
+                        <p>
+                          {doc.size} • {doc.lastModified}
+                        </p>
+                      </div>
                     </div>
+                  </CardContent>
+                </Card>
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {filteredDocuments.map((doc) => (
+              <Link key={doc.id} href={`/document/${doc.id}`}>
+                <Card className="border-border hover:bg-accent/50 transition-colors cursor-pointer">
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-4">
+                      <div className="size-10 bg-muted rounded-lg flex items-center justify-center shrink-0">
+                        <FileText className="size-5 text-muted-foreground" />
+                      </div>
+
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="font-semibold text-foreground">
+                            {doc.title}
+                          </h3>
+                          <Badge variant="secondary" className="text-xs">
+                            {doc.fileType}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <span>{doc.owner}</span>
+                          <span>•</span>
+                          <span>{doc.size}</span>
+                          <span>•</span>
+                          <span>{doc.lastModified}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+            ))}
+          </div>
+        )
+      ) : view === "grid" ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredLinks.map((link) => (
+            <Card
+              key={link.id}
+              className="border-border hover:bg-accent/50 transition-colors h-full"
+            >
+              <CardContent className="p-5 space-y-4">
+                <div className="flex items-start justify-between">
+                  <div className="size-12 bg-muted rounded-lg flex items-center justify-center">
+                    <Link2 className="size-6 text-muted-foreground" />
                   </div>
-                </CardContent>
-              </Card>
-            </Link>
+                  <Badge variant="secondary" className="text-xs">
+                    {link.host}
+                  </Badge>
+                </div>
+
+                <div className="space-y-1">
+                  <h3 className="font-semibold text-foreground mb-1 line-clamp-2">
+                    {link.title}
+                  </h3>
+                  <p className="text-xs text-muted-foreground line-clamp-1">
+                    {link.url}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    By {link.owner} • {link.createdAt}
+                  </p>
+                </div>
+
+                <Button asChild variant="outline" className="w-full">
+                  <a href={link.url} target="_blank" rel="noreferrer">
+                    Abrir enlace
+                  </a>
+                </Button>
+              </CardContent>
+            </Card>
           ))}
         </div>
       ) : (
         <div className="space-y-2">
-          {filteredDocuments.map((doc) => (
-            <Link key={doc.id} href={`/document/${doc.id}`}>
-              <Card className="border-border hover:bg-accent/50 transition-colors cursor-pointer">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-4">
-                    <div className="size-10 bg-muted rounded-lg flex items-center justify-center shrink-0">
-                      <FileText className="size-5 text-muted-foreground" />
-                    </div>
+          {filteredLinks.map((link) => (
+            <Card
+              key={link.id}
+              className="border-border hover:bg-accent/50 transition-colors"
+            >
+              <CardContent className="p-4">
+                <div className="flex items-center gap-4">
+                  <div className="size-10 bg-muted rounded-lg flex items-center justify-center shrink-0">
+                    <Link2 className="size-5 text-muted-foreground" />
+                  </div>
 
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h3 className="font-semibold text-foreground">
-                          {doc.title}
-                        </h3>
-                        <Badge variant="secondary" className="text-xs">
-                          {doc.fileType}
-                        </Badge>
-                      </div>
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <span>{doc.owner}</span>
-                        <span>•</span>
-                        <span>{doc.size}</span>
-                        <span>•</span>
-                        <span>{doc.lastModified}</span>
-                      </div>
+                  <div className="flex-1 min-w-0 space-y-1">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold text-foreground">
+                        {link.title}
+                      </h3>
+                      <Badge variant="secondary" className="text-xs">
+                        {link.host}
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground line-clamp-1">
+                      {link.url}
+                    </p>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span>{link.owner}</span>
+                      <span>•</span>
+                      <span>{link.createdAt}</span>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
-            </Link>
+
+                  <Button asChild variant="outline" className="shrink-0">
+                    <a href={link.url} target="_blank" rel="noreferrer">
+                      Abrir
+                    </a>
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           ))}
         </div>
       )}
