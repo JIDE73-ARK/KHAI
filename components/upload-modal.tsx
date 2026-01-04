@@ -16,7 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Upload, Cloud, Check, AlertCircle } from "lucide-react";
-import { uploadRequest } from "@/lib/req";
+import { uploadRequest, request } from "@/lib/req";
 
 interface UploadModalProps {
   open: boolean;
@@ -26,6 +26,7 @@ interface UploadModalProps {
 export function UploadModal({ open, onOpenChange }: UploadModalProps) {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [linkUrl, setLinkUrl] = useState("");
+  const [linkTitle, setLinkTitle] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
 
@@ -40,7 +41,7 @@ export function UploadModal({ open, onOpenChange }: UploadModalProps) {
 
   formData.append("file", selectedFiles[0]);
 
-  const uploadFiles = async() => {
+  const uploadFiles = async () => {
     const files = await uploadRequest(`/docs/upload/${userId}`, formData);
   };
 
@@ -66,10 +67,17 @@ export function UploadModal({ open, onOpenChange }: UploadModalProps) {
       });
     }, 100);
   };
+  const handleLinkSubmit = async () => {
+    const userId = localStorage.getItem("user_id");
+    if (!userId) return;
 
-  const handleLinkSubmit = () => {
-    // Simulate link save
+    await request(`/docs/uploadLink/${userId}`, "POST", {
+      url: linkUrl,
+      title: linkTitle,
+    });
+
     setLinkUrl("");
+    setLinkTitle("");
     onOpenChange(false);
   };
 
@@ -179,6 +187,17 @@ export function UploadModal({ open, onOpenChange }: UploadModalProps) {
           <TabsContent value="link" className="space-y-4 mt-4">
             <div className="space-y-4">
               <div className="space-y-2">
+                <Label htmlFor="link-title">Título</Label>
+                <Input
+                  id="link-title"
+                  type="text"
+                  placeholder="Ejemplo"
+                  value={linkTitle}
+                  onChange={(e) => setLinkTitle(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
                 <Label htmlFor="link-url">URL</Label>
                 <Input
                   id="link-url"
@@ -201,7 +220,7 @@ export function UploadModal({ open, onOpenChange }: UploadModalProps) {
               <Button
                 className="w-full"
                 onClick={handleLinkSubmit}
-                disabled={!linkUrl}
+                disabled={!linkUrl || !linkTitle}
               >
                 Add Link
               </Button>
