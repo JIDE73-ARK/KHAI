@@ -28,6 +28,24 @@ export function LoginForm({ onSubmit, onForgotPassword }: LoginFormProps) {
 
   const trimmedEmail = useMemo(() => email.trim(), [email]);
 
+  const verifyProfile = async (userId: string) => {
+    try {
+      const profileVerify = await request(
+        `/profile/verifyProfile/${userId}`,
+        "GET",
+        {}
+      );
+
+      if (profileVerify?.status == 200) {
+        router.push("/dashboard");
+      } else {
+        router.push(`/create-profile`);
+      }
+    } catch (error) {
+      console.error("verifyProfile failed", error);
+    }
+  };
+
   const handleSubmit = useCallback(
     async (event: React.FormEvent<HTMLFormElement>) => {
       event.preventDefault();
@@ -48,8 +66,7 @@ export function LoginForm({ onSubmit, onForgotPassword }: LoginFormProps) {
         });
 
         localStorage.setItem("user_id", response.user.id);
-
-        router.push(`/create-profile`);
+        verifyProfile(response.user.id);
       } catch (error) {
         setStatusMessage("No fue posible iniciar sesión.");
       } finally {
