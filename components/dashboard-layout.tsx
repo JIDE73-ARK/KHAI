@@ -3,6 +3,7 @@
 import type React from "react";
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
+import { request } from "@/lib/req";
 import {
   Home,
   Search,
@@ -60,6 +61,23 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   } | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
 
+  const loadUserInfoFromStorage = useCallback(() => {
+    if (typeof window === "undefined") return;
+    const savedUserInfo = localStorage.getItem("user_info");
+    if (!savedUserInfo) return;
+    try {
+      const parsed = JSON.parse(savedUserInfo);
+      if (parsed?.name || parsed?.team) {
+        setUserInfo({
+          name: parsed.name ?? "User",
+          team: parsed.team ?? "",
+        });
+      }
+    } catch (err) {
+      console.error("Failed to parse user_info", err);
+    }
+  }, []);
+
   useEffect(() => {
     // Guard against SSR: localStorage is only available in the browser.
     if (typeof window === "undefined") return;
@@ -67,7 +85,6 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     const savedTheme = localStorage.getItem("theme") as "light" | "dark" | null;
     const savedAccentColor = localStorage.getItem("accentColor");
     const savedUserId = localStorage.getItem("user_id");
-    const savedUserInfo = localStorage.getItem("user_info");
 
     if (savedTheme) {
       setTheme(savedTheme);
@@ -78,21 +95,9 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     if (savedUserId) {
       setUserId(savedUserId);
     }
-    if (savedUserInfo) {
-      try {
-        const parsed = JSON.parse(savedUserInfo);
-        if (parsed?.name || parsed?.team) {
-          setUserInfo({
-            name: parsed.name ?? "User",
-            team: parsed.team ?? "",
-          });
-        }
-      } catch (err) {
-        console.error("Failed to parse user_info", err);
-      }
-    }
+    loadUserInfoFromStorage();
     setIsInitialized(true);
-  }, []);
+  }, [loadUserInfoFromStorage]);
 
   useEffect(() => {
     if (!isInitialized) return;
@@ -111,16 +116,21 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     if (!userId) return;
     const runVerify = async () => {
       await verifyProfile(userId);
+      loadUserInfoFromStorage();
     };
     runVerify();
-  }, [router, userId]);
+  }, [router, userId, loadUserInfoFromStorage]);
 
   const toggleTheme = () => {
     setTheme((prev) => (prev === "dark" ? "light" : "dark"));
   };
 
   const handleLogout = useCallback(() => {
-    router.push("/");
+    request("/auth/logout", "POST", {}).then(async () => {
+      localStorage.removeItem("user_id");
+      localStorage.removeItem("user_info");
+      router.push("/");
+    });
   }, [router]);
 
   const userInitials =
@@ -226,10 +236,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56">
-                  <DropdownMenuLabel>My Account</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem>Profile</DropdownMenuItem>
-                  <DropdownMenuItem>Preferences</DropdownMenuItem>
+                  <DropdownMenuLabel>KHAI</DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem>
                     <button onClick={handleLogout} className="w-full text-left">
