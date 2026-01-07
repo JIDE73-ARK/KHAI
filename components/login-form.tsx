@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { request } from "@/lib/req";
+import { verifyProfile } from "@/lib/verifications";
 
 interface LoginFormProps {
   onSubmit?: (credentials: {
@@ -27,24 +28,6 @@ export function LoginForm({ onSubmit, onForgotPassword }: LoginFormProps) {
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   const trimmedEmail = useMemo(() => email.trim(), [email]);
-
-  const verifyProfile = async (userId: string) => {
-    try {
-      const profileVerify = await request(
-        `/profile/verifyProfile/${userId}`,
-        "GET",
-        {}
-      );
-
-      if (profileVerify?.status == 200) {
-        router.push("/dashboard");
-      } else {
-        router.push(`/create-profile`);
-      }
-    } catch (error) {
-      console.error("verifyProfile failed", error);
-    }
-  };
 
   const handleSubmit = useCallback(
     async (event: React.FormEvent<HTMLFormElement>) => {
@@ -66,7 +49,10 @@ export function LoginForm({ onSubmit, onForgotPassword }: LoginFormProps) {
         });
 
         localStorage.setItem("user_id", response.user.id);
-        verifyProfile(response.user.id);
+        localStorage.setItem("user_info", response.user.name);
+        await verifyProfile(response.user.id);
+        router.push("/dashboard");
+
       } catch (error) {
         setStatusMessage("No fue posible iniciar sesión.");
       } finally {

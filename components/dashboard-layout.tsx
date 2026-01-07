@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { UploadModal } from "@/components/upload-modal";
+import { verifyProfile } from "@/lib/verifications";
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: Home },
   { name: "Search", href: "/search", icon: Search },
@@ -79,6 +80,13 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     localStorage.setItem("accentColor", accentColor);
     document.documentElement.style.setProperty("--primary", accentColor);
   }, [accentColor, isInitialized]);
+
+  useEffect(() => {
+    const runVerify = async () => {
+      await verifyProfile(localStorage.getItem("user_id"));
+    };
+    runVerify();
+  }, [router]);
 
   const toggleTheme = () => {
     setTheme((prev) => (prev === "dark" ? "light" : "dark"));
