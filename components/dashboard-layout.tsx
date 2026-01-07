@@ -54,6 +54,10 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [theme, setTheme] = useState<"light" | "dark">("dark");
   const [accentColor, setAccentColor] = useState(accentColors[0].value);
   const [userId, setUserId] = useState<string | null>(null);
+  const [userInfo, setUserInfo] = useState<{
+    name: string;
+    team: string;
+  } | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
 
   useEffect(() => {
@@ -63,6 +67,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     const savedTheme = localStorage.getItem("theme") as "light" | "dark" | null;
     const savedAccentColor = localStorage.getItem("accentColor");
     const savedUserId = localStorage.getItem("user_id");
+    const savedUserInfo = localStorage.getItem("user_info");
 
     if (savedTheme) {
       setTheme(savedTheme);
@@ -72,6 +77,19 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     }
     if (savedUserId) {
       setUserId(savedUserId);
+    }
+    if (savedUserInfo) {
+      try {
+        const parsed = JSON.parse(savedUserInfo);
+        if (parsed?.name || parsed?.team) {
+          setUserInfo({
+            name: parsed.name ?? "User",
+            team: parsed.team ?? "",
+          });
+        }
+      } catch (err) {
+        console.error("Failed to parse user_info", err);
+      }
     }
     setIsInitialized(true);
   }, []);
@@ -104,6 +122,14 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const handleLogout = useCallback(() => {
     router.push("/");
   }, [router]);
+
+  const userInitials =
+    (userInfo?.name ?? "User")
+      .split(" ")
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase())
+      .join("") || "U";
 
   return (
     <div className="min-h-screen bg-background">
@@ -186,15 +212,15 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                   <button className="flex items-center gap-3 w-full hover:bg-sidebar-accent rounded-lg p-2 transition-colors">
                     <Avatar className="size-8">
                       <AvatarFallback className="bg-sidebar-primary text-sidebar-primary-foreground text-sm">
-                        JD
+                        {userInitials}
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex-1 text-left">
                       <p className="text-sm font-medium text-sidebar-foreground">
-                        John Doe
+                        {userInfo?.name ?? "User"}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        john@acme.com
+                        {userInfo?.team ?? "Team"}
                       </p>
                     </div>
                   </button>
