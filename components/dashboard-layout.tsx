@@ -55,6 +55,8 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [accentColor, setAccentColor] = useState(accentColors[0].value);
   const [isInitialized, setIsInitialized] = useState(false);
 
+  const userId = localStorage.getItem("user_id");
+
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme") as "light" | "dark" | null;
     const savedAccentColor = localStorage.getItem("accentColor");
@@ -83,7 +85,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const runVerify = async () => {
-      await verifyProfile(localStorage.getItem("user_id"));
+      await verifyProfile(userId || "");
     };
     runVerify();
   }, [router]);
