@@ -53,19 +53,25 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("dark");
   const [accentColor, setAccentColor] = useState(accentColors[0].value);
+  const [userId, setUserId] = useState<string | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
 
-  const userId = localStorage.getItem("user_id");
-
   useEffect(() => {
+    // Guard against SSR: localStorage is only available in the browser.
+    if (typeof window === "undefined") return;
+
     const savedTheme = localStorage.getItem("theme") as "light" | "dark" | null;
     const savedAccentColor = localStorage.getItem("accentColor");
+    const savedUserId = localStorage.getItem("user_id");
 
     if (savedTheme) {
       setTheme(savedTheme);
     }
     if (savedAccentColor) {
       setAccentColor(savedAccentColor);
+    }
+    if (savedUserId) {
+      setUserId(savedUserId);
     }
     setIsInitialized(true);
   }, []);
@@ -84,11 +90,12 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   }, [accentColor, isInitialized]);
 
   useEffect(() => {
+    if (!userId) return;
     const runVerify = async () => {
-      await verifyProfile(userId || "");
+      await verifyProfile(userId);
     };
     runVerify();
-  }, [router]);
+  }, [router, userId]);
 
   const toggleTheme = () => {
     setTheme((prev) => (prev === "dark" ? "light" : "dark"));
